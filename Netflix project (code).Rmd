@@ -1,0 +1,430 @@
+---
+title: "Stat430_A04"
+author: "Rick"
+date: '2020-08-04'
+output:
+  pdf_document:
+    keep_tex: yes
+    latex_engine: xelatex
+    number_sections: no
+  html_document:
+    toc: yes
+  word_document: default
+urlcolor: blue
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+```{r, include = FALSE}
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=70),tidy=TRUE)
+```
+
+Fitting the model and getting anova table
+```{r}
+setwd("~/Desktop/STAT 430/Final Project (stat430)")
+netflix <- read.csv("RESULTS_20705607_2020-08-07.csv", header = TRUE)
+TS <- c()
+for(i in 1:1000){
+  if(netflix$Tile.Size[i] == 0.1){
+    TS[i] <- -1
+  }
+  else{
+    TS[i] <- 1
+  }
+}
+PS <- c()
+for(i in 1:1000){
+  if(netflix$Prev.Size[i] == 0.3){
+    PS[i] <- -1
+  }
+  else{
+    PS[i] <- 1
+  }
+}
+PL <- c()
+for(i in 1:1000){
+  if(netflix$Prev.Length[i] == 30){
+    PL[i] <- -1
+  }
+  else{
+    PL[i] <- 1
+  }
+}
+model <- lm(netflix$Browse.Time ~ TS*PS*PL)
+anova(model)
+anova(model)$`Pr(>F)`
+```
+
+Mean and Variance
+```{r}
+mean(netflix$Browse.Time)
+var(netflix$Browse.Time)
+sqrt(var(netflix$Browse.Time))
+mean(netflix$Browse.Time) + c(-1,1)*sqrt(var(netflix$Browse.Time))
+```
+
+
+Main effect plots
+```{r}
+# {r, fig.align='center', fig.width=8, fig.height=8}
+agg.A <- aggregate(x = netflix$Browse.Time, by = list(A = TS), FUN = mean)
+agg.B <- aggregate(x = netflix$Browse.Time, by = list(B = PS), FUN = mean)
+agg.C <- aggregate(x = netflix$Browse.Time, by = list(C = PL), FUN = mean)
+agg.B.C <- aggregate(x = netflix$Browse.Time, by = list(B = PS, C = PL), FUN = mean)
+
+#par(mfrow=c(2,2))
+# plot(x = 1:2, y = agg.A$x,
+#      pch = 16, ylim = c(16, 23), xaxt = "n", xlab = "Tile Size (TS)",
+#      ylab = "Average Browsing Time", main = "Main Effect of Tile Size")
+# lines(x = 1:2, y = agg.A$x)
+# axis(side = 1, at = 1:2, labels = c("Low", "High"))
+par(mfrow=c(1,3))
+
+plot(x = 1:2, y = agg.B$x, 
+     pch = 16, ylim = c(16, 23), xaxt = "n", xlab = "Preview Size (PS)", 
+     ylab = "Average Browsing Time", main = "Main Effect of Preview Size")
+lines(x = 1:2, y = agg.B$x)
+axis(side = 1, at = 1:2, labels = c("Low", "High"))
+
+plot(x = 1:2, y = agg.C$x, 
+     pch = 16, ylim = c(16, 23), xaxt = "n", xlab = "Preview Length (PL)", 
+     ylab = "Average Browsing Time", main = "Main Effect of Preview Length")
+lines(x = 1:2, y = agg.C$x)
+axis(side = 1, at = 1:2, labels = c("Low", "High"))
+
+interaction.plot(PL, PS, netflix$Browse.Time, main = "PS:PL Interaction", 
+                 xlab = "Preview Length (PL)", ylab = "Average Browsing Time", ylim = c(16, 23),
+                 legend = F, xaxt = "n")
+points(x = c(1,1,2,2), y = agg.B.C$x, pch = 16)
+axis(side = 1, at = 1:2, labels = c("Low", "High"))
+legend("topleft", legend = c("Preview Size (PS)","Low", "High"), lty = c(1,1,2), 
+       col=c("white", "black", "black"), cex = 1, bty = "n")
+```
+
+
+```{r}
+library(plot3D)
+blue_palette <- colorRampPalette(c(rgb(247,251,255,maxColorValue = 255), rgb(8,48,107,maxColorValue = 255)))
+setwd("~/Desktop/STAT 430/Final Project (stat430)")
+test1 <- read.csv("RESULTS_20705607_2020-08-12.csv", header = TRUE)
+# Function for converting from natural units to coded units
+convert.N.to.C <- function(U,UH,UL){
+  x <- (U - (UH+UL)/2) / ((UH-UL)/2)
+  return(x)
+}
+
+# Function for converting from coded units to natural units
+convert.C.to.N <- function(x,UH,UL){
+  U <- x*((UH-UL)/2) + (UH+UL)/2
+  return(U)
+}
+
+ph1 <- data.frame(y = test1$Browse.Time,
+                  x1 = convert.N.to.C(U = test1$Prev.Length, UH = 90, UL = 30),
+                  x2 = convert.N.to.C(U = test1$Prev.Size, UH = 0.5, UL = 0.3))
+#model_test3 <- lm(ph1$y ~ ph1$x1*ph1$x2)
+ph1$xPQ <- (ph1$x1^2 + ph1$x2^2)/2
+aggregate(ph1$y, by = list(x1 = ph1$x1, x2 = ph1$x2), FUN = mean)
+m <- lm(y~x1+x2+x1*x2+xPQ, data = ph1)
+summary(m)
+m.fo <- lm(y~x1+x2, data = ph1)
+beta0 <- coef(m.fo)[1]
+beta1 <- coef(m.fo)[2]
+beta2 <- coef(m.fo)[3]
+grd <- mesh(x = seq(convert.N.to.C(U = 30, UH = 90, UL = 30), 
+                    convert.N.to.C(U = 120, UH = 90, UL = 30), 
+                    length.out = 100), 
+            y = seq(convert.N.to.C(U = 0.2, UH = 0.5, UL = 0.3), 
+                    convert.N.to.C(U = 0.8, UH = 0.5, UL = 0.3), 
+                    length.out = 100))
+x1 <- grd$x
+x2 <- grd$y
+eta.fo <- beta0 + beta1*x1 + beta2*x2
+# 2D contour plot
+contour(x = seq(convert.N.to.C(U = 30, UH = 90, UL = 30), 
+                convert.N.to.C(U = 120, UH = 90, UL = 30), 
+                length.out = 100),
+        y = seq(convert.N.to.C(U = 0.2, UH = 0.5, UL = 0.3), 
+                convert.N.to.C(U = 0.8, UH = 0.5, UL = 0.3), 
+                length.out = 100), 
+        z = eta.fo, xlab = "x1 (Preview Length)", ylab = "x2 (Preview Size)",
+        nlevels = 15, col = blue_palette(15), labcex = 0.9, asp=0.25)
+abline(a = 0, b = beta2/beta1, lty = 2)
+points(x = 0, y = 0, col = "red", pch = 16)
+# The gradient vector
+g <- matrix(c(beta1, beta2), nrow = 1)
+
+# We will take steps of size 5 seconds in preview length. In coded units this is !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+PL.step <- convert.N.to.C(U = 60 + 5, UH = 90, UL = 30)
+lamda <- PL.step/abs(beta1)
+
+## Step 0: The center point we've already observed
+x.old <- matrix(0, nrow=1, ncol=2)
+text(x = 0, y = 0+0.25, labels = "0")
+step0 <- data.frame(Prev.Length = convert.C.to.N(x = 0, UH = 90, UL = 30), 
+                 Prev.Size = convert.C.to.N(x = 0, UH = 0.5, UL = 0.3))
+
+## Step 1: 
+x.new <- x.old - lamda*g ##(It is  negative because we are descending)
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "1")
+step1 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 90, UL = 30), 
+                    Prev.Size = convert.C.to.N(x = x.new[1,2], UH = 0.5, UL = 0.3))
+
+## Step 2: 
+x.old <- x.new
+x.new <- x.old - lamda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "2")
+step2 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 90, UL = 30), 
+                    Prev.Size = convert.C.to.N(x = x.new[1,2], UH = 0.5, UL = 0.3))
+
+## Step 3: 
+x.old <- x.new
+x.new <- x.old - lamda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "3")
+step3 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 90, UL = 30), 
+                    Prev.Size = convert.C.to.N(x = x.new[1,2], UH = 0.5, UL = 0.3))
+
+## Step 4: 
+x.old <- x.new
+x.new <- x.old - lamda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "4")
+step4 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 90, UL = 30), 
+                    Prev.Size = convert.C.to.N(x = x.new[1,2], UH = 0.5, UL = 0.3))
+
+## Step 5: 
+x.old <- x.new
+x.new <- x.old - lamda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "5")
+step5 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 90, UL = 30), 
+                    Prev.Size = convert.C.to.N(x = x.new[1,2], UH = 0.5, UL = 0.3))
+
+## Step 6: 
+x.old <- x.new
+x.new <- x.old - lamda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "6")
+step6 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 90, UL = 30), 
+                    Prev.Size = convert.C.to.N(x = x.new[1,2], UH = 0.5, UL = 0.3))
+
+## Step 7:
+x.old <- x.new
+x.new <- x.old - lamda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "7")
+step7 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 90, UL = 30),
+                    Prev.Size = convert.C.to.N(x = x.new[1,2], UH = 0.5, UL = 0.3))
+
+## Step 8:
+x.old <- x.new
+x.new <- x.old - lamda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "8")
+step8 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 90, UL = 30),
+                    Prev.Size = convert.C.to.N(x = x.new[1,2], UH = 0.5, UL = 0.3))
+
+## Step 9:
+x.old <- x.new
+x.new <- x.old - lamda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "9")
+step9 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 90, UL = 30),
+                    Prev.Size = convert.C.to.N(x = x.new[1,2], UH = 0.5, UL = 0.3))
+
+## Step 10:
+x.old <- x.new
+x.new <- x.old - lamda*g
+points(x = x.new[1,1], y = x.new[1,2], col = "red", pch = 16)
+text(x = x.new[1,1], y = x.new[1,2]+0.25, labels = "10")
+step10 <- data.frame(Prev.Length = convert.C.to.N(x = x.new[1,1], UH = 90, UL = 30),
+                    Prev.Size = convert.C.to.N(x = x.new[1,2], UH = 0.5, UL = 0.3))
+
+
+```
+```{r}
+summary(m)$coefficients[,4]
+```
+```{r}
+convert.N.to.C(U = 60, UH = 90, UL = 30)
+convert.N.to.C(U = 60 + 5, UH = 90, UL = 30)
+```
+
+
+```{r}
+## The following is a list of the conditions along the path of steepest descent
+#pstd.cond <- data.frame(Step = 0:5, rbind(step0, step1, step2, step3, step4, step5))
+pstd.cond <- data.frame(Step = 0:10, rbind(step0, step1, step2, step3, step4, step5, step6, step7, step8, step9, step10))
+#pstd.cond <- data.frame(Step = 0:6, rbind(step0, step1, step2, step3, step4, step5, step6))
+#pstd.cond <- data.frame(Step = 0:7, rbind(step0, step1, step2, step3, step4, step5, step6, step7))
+pstd.cond # send this through the simulator
+```
+```{r}
+## Load the data associated with the steepest descent search
+netflix.ph2 <- read.csv("RESULTS_20705607_2020-08-13_2.csv", header = TRUE)
+
+## Calculate the average browsing time in each of these conditions and find the 
+## condition that minimizes it
+pstd.means <- aggregate(netflix.ph2$Browse.Time, 
+                        by = list(Tile.Size = netflix.ph2$Prev.Length, 
+                                  Prev.Size = netflix.ph2$Prev.Size), 
+                        FUN = mean)
+
+plot(x = 0:10, y = pstd.means$x,
+     type = "l", xlab = "Step Number", ylab = "Average Browsing Time")
+points(x = 0:10, y = pstd.means$x,
+       col = "red", pch = 16)
+```
+
+```{r}
+pstd.cond[pstd.cond$Step == 7,]
+```
+
+```{r}
+netflix.ph2.5 <- read.csv("RESULTS_20705607_2020-08-13_3.csv", header = TRUE)
+ph2.5 <- data.frame(y = netflix.ph2.5$Browse.Time,
+                  x1 = convert.N.to.C(U = netflix.ph2.5$Prev.Length, UH = 110, UL = 80),
+                  x2 = convert.N.to.C(U = netflix.ph2.5$Prev.Size, UH = 0.6, UL = 0.4))
+
+ph2.5$xPQ <- (ph2.5$x1^2 + ph2.5$x2^2)/2
+aggregate(ph2.5$y, by = list(x1 = ph2.5$x1, x2 = ph2.5$x2), FUN = mean)
+m2 <- lm(y~x1+x2+x1*x2+xPQ, data = ph2.5)
+summary(m2)
+summary(m2)$coefficients[,4]
+```
+
+(95, 0.5)
+```{r}
+convert.C.to.N(x = c(-sqrt(2), sqrt(2)), UH = 120, UL = 70)
+convert.C.to.N(x = c(-1.4, 1.4), UH = 110, UL = 80)
+convert.C.to.N(x = c(-1.4, 1.4), UH = 0.6, UL = 0.4)
+```
+
+```{r}
+# netflixCCD <- read.csv("RESULTS_20705607_2020-08-13_4.csv", header = TRUE)
+# condition <- data.frame(x1 = c(74, 80, 80, 95, 95, 95, 110, 110, 116),
+#                         x2 = c(0.5, 0.4, 0.6, 0.36, 0.5, 0.64, 0.4, 0.6, 0.5))
+# mu_hat <- aggregate(x = netflixCCD$Browse.Time, by = list(condition.num = kronecker(1:9, rep(1, 250))), FUN = mean)
+# data.frame(Condition.Num = mu_hat$condition.num,
+#            prev.length = condition$x1,
+#            prev.size = condition$x2,
+#            avg.brows = mu_hat$x)
+# model2nd <- lm(netflixCCD$Browse.Time ~ netflixCCD$Prev.Length + netflixCCD$Prev.Size + (netflixCCD$Prev.Length)*(netflixCCD$Prev.Size) + I((netflixCCD$Prev.Length)^2) + I((netflixCCD$Prev.Size)^2))
+# summary(model2nd)
+# summary(model2nd)$coefficients[,4]
+```
+(95, 0.5)
+```{r}
+# condition <- data.frame(x1 = c(-1.4, -1, -1, 0, 0, 0, 1, 1, 1.4),
+#                         x2 = c(0, -1, 1, -1.4, 0, 1.4, -1, 1, 0))
+condition <- data.frame(x1 = convert.C.to.N(x = c(-1.4, -1, -1, 0, 0, 0, 1, 1, 1.4), UH = 110, UL = 80), 
+                        x2 = convert.C.to.N(x = c(0, -1, 1, -1.4, 0, 1.4, -1, 1, 0), UH = 0.6, UL = 0.4))
+
+PL.c <- convert.N.to.C(U = netflixCCD$Prev.Length, UH = 110, UL = 80)
+PS.c <- convert.N.to.C(U = netflixCCD$Prev.Size, UH = 0.6, UL = 0.4)
+
+mu_hat <- aggregate(x = netflixCCD$Browse.Time, by = list(condition.num = kronecker(1:9, rep(1, 250))), FUN = mean)
+data.frame(Condition.Num = mu_hat$condition.num,
+           prev.length = condition$x1,
+           prev.size = condition$x2,
+           avg.brows = mu_hat$x)
+model2nd <- lm(netflixCCD$Browse.Time ~ PL.c + PS.c + (PL.c)*(PS.c) + I((PL.c)^2) + I((PS.c)^2))
+summary(model2nd)
+summary(model2nd)$coefficients[,4]
+
+```
+
+
+```{r}
+library(plot3D)
+beta0 <- coef(model2nd)[1]
+beta1 <- coef(model2nd)[2]
+beta2 <- coef(model2nd)[3]
+beta12 <- coef(model2nd)[6]
+beta11 <- coef(model2nd)[4]
+beta22 <- coef(model2nd)[5]
+
+grd2 <- mesh(x = seq(convert.N.to.C(U = 30, UH = 110, UL = 80),
+                    convert.N.to.C(U = 120, UH = 110, UL = 80),
+                    length.out = 100),
+            y = seq(convert.N.to.C(U = 0.2, UH = 0.6, UL = 0.4),
+                    convert.N.to.C(U = 0.8, UH = 0.6, UL = 0.4),
+                    length.out = 100))
+
+x1 <- grd2$x
+x2 <- grd2$y
+eta.so <- beta0 + beta1*x1 + beta2*x2 + beta12*x1*x2 + beta11*x1^2 + beta22*x2^2
+
+contour(x = seq(convert.N.to.C(U = 30, UH = 110, UL = 80),
+                convert.N.to.C(U = 120, UH = 110, UL = 80),
+                length.out = 100),
+        y = seq(convert.N.to.C(U = 0.2, UH = 0.6, UL = 0.4),
+                convert.N.to.C(U = 0.8, UH = 0.6, UL = 0.4),
+                length.out = 100),
+        z = eta.so, xlab = "x1", ylab = "x2",
+        nlevels = 20, col = blue_palette(20), labcex = 0.9)
+
+
+b <- matrix(c(beta1,beta2), ncol = 1)
+B <- matrix(c(beta11, 0.5*beta12, 0.5*beta12, beta22), nrow = 2, ncol = 2)
+x.s <- -0.5*solve(B) %*% b 
+
+points(x = x.s[1], y = x.s[2], col = "red", pch = 16)
+
+# The predicted book rate at this configuration is:
+eta.s <- beta0 + 0.5*t(x.s) %*% b
+
+contour(x = seq(30, 120, length.out = 100), 
+        y = seq(0.2, 0.8, length.out = 100), 
+        z = eta.so, xlab = "Preview Length", ylab = "Preview Size",
+        nlevels = 20, col = blue_palette(20), labcex = 0.9)
+points(x = convert.C.to.N(x = x.s[1,1], UH = 110, UL = 80),
+       y = convert.C.to.N(x = x.s[2,1], UH = 0.6, UL = 0.4), 
+       col = "red", pch = 16)
+points(x = 88, y = 0.65, pch = 16, col = "green")
+```
+
+```{r}
+x.s[1]
+x.s[2]
+
+abt.est <- 16.53794 + 0.52976*(-0.4869694)-1.22134*(1.497187) + 0.90026*(-0.4869694^2) + 0.44557*(1.497187^2) + 0.23179*(-0.4869694)*(1.497187)
+abt.est
+abt.est + c(-1,1)*1.96*sqrt(var(netflixCCD$Browse.Time))
+#x1[,1]
+```
+
+```{r}
+convert.N.to.C(U = 88, UH = 110, UL = 80)
+convert.N.to.C(U = 0.65, UH = 0.6, UL = 0.4)
+#-0.4666667
+#1.5
+
+abt.subest <- 16.53794 + 0.52976*(-0.4666667)-1.22134*(1.5) + 0.90026*(-0.4666667^2) + 0.44557*(1.5^2) + 0.23179*(-0.4666667)*(1.5)
+abt.subest
+abt.subest + c(-1,1)*1.96*sqrt(var(netflixCCD$Browse.Time))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
